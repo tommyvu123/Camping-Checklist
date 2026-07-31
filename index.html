@@ -25,7 +25,7 @@
 
     .container {
       width: 100%;
-      max-width: 500px;
+      max-width: 850px; /* Expanded width to fit 2 side-by-side columns */
       display: flex;
       flex-direction: column;
       gap: 20px;
@@ -54,7 +54,7 @@
 
     .info-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 12px;
       border-top: 1px solid #2c2c2e;
       padding-top: 14px;
@@ -83,21 +83,32 @@
     .add-bar {
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .add-bar input {
-      flex: 1;
+      flex: 2;
+      min-width: 160px;
       background-color: #1c1c1e;
       border: 1px solid #2c2c2e;
       border-radius: 12px;
       padding: 12px 16px;
-      font-size: 1rem;
+      font-size: 0.95rem;
       color: #fff;
       outline: none;
     }
 
-    .add-bar input::placeholder {
-      color: #636366;
+    .add-bar select {
+      flex: 1;
+      min-width: 140px;
+      background-color: #1c1c1e;
+      border: 1px solid #2c2c2e;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.9rem;
+      color: #e5b324;
+      outline: none;
+      cursor: pointer;
     }
 
     .add-bar button {
@@ -105,7 +116,7 @@
       color: #000;
       border: none;
       border-radius: 12px;
-      padding: 0 18px;
+      padding: 0 20px;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
@@ -115,8 +126,8 @@
       opacity: 0.8;
     }
 
-    /* Checklist Section */
-    .checklist-title {
+    /* Checklist Header */
+    .checklist-header {
       font-size: 1.1rem;
       font-weight: 600;
       color: #8e8e93;
@@ -132,34 +143,59 @@
       font-weight: 400;
     }
 
+    /* Side-by-Side Grid Layout */
+    .categories-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+      align-items: start;
+      padding-bottom: 40px;
+    }
+
+    .category-card {
+      background-color: #1c1c1e;
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .category-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #e5b324;
+      font-weight: 700;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #2c2c2e;
+    }
+
     .checklist {
       list-style: none;
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      padding-bottom: 40px;
+      gap: 8px;
     }
 
     .item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 0;
+      padding: 4px 0;
       user-select: none;
     }
 
     .item-left {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 12px;
       flex: 1;
       cursor: pointer;
     }
 
     /* Apple-style Checkbox */
     .checkbox {
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       border: 2px solid #636366;
       display: flex;
@@ -176,8 +212,8 @@
 
     .checkbox::after {
       content: '';
-      width: 6px;
-      height: 10px;
+      width: 5px;
+      height: 9px;
       border: solid #000;
       border-width: 0 2px 2px 0;
       transform: rotate(45deg) translate(-1px, -1px);
@@ -189,7 +225,7 @@
     }
 
     .item-text {
-      font-size: 1.1rem;
+      font-size: 0.95rem;
       color: #ffffff;
       transition: color 0.2s ease;
       word-break: break-word;
@@ -204,13 +240,19 @@
       background: none;
       border: none;
       color: #48484a;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       cursor: pointer;
-      padding: 4px 8px;
+      padding: 2px 6px;
     }
 
     .delete-btn:hover {
       color: #ff453a;
+    }
+
+    @media (max-width: 420px) {
+      .categories-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -245,83 +287,124 @@
     <!-- Add Item Input -->
     <form class="add-bar" id="todoForm">
       <input type="text" id="itemInput" placeholder="Add new item..." required />
+      <select id="categorySelect">
+        <option value="Food & Drinks">Food & Drinks</option>
+        <option value="Camp Gear & Fire">Camp Gear & Fire</option>
+        <option value="Cooking & Dining">Cooking & Dining</option>
+        <option value="Toiletries & Hygiene">Toiletries & Hygiene</option>
+        <option value="People">People</option>
+        <option value="General">General</option>
+      </select>
       <button type="submit">Add</button>
     </form>
 
-    <div class="checklist-title">
+    <div class="checklist-header">
       Checklist
       <span class="status-badge" id="statusBadge">● Live Sync</span>
     </div>
 
-    <!-- Items List -->
-    <ul class="checklist" id="checklist"></ul>
+    <!-- Categorized Grid View -->
+    <div class="categories-grid" id="categoriesGrid"></div>
   </div>
 
   <script>
     const initialItems = [
-      { text: "Marshmallows, sticks", checked: false },
-      { text: "Charcoal", checked: false },
-      { text: "Red Solo Cups", checked: false },
-      { text: "Bug/Mosquito Repellent", checked: true },
-      { text: "Firewood", checked: false },
-      { text: "Tablecloth", checked: false },
-      { text: "Utensils", checked: true },
-      { text: "Plates, bowls", checked: false },
-      { text: "Icebox", checked: true },
-      { text: "Alcohol", checked: false },
-      { text: "Pack of water/water gallon jugs", checked: false },
-      { text: "Hand sanitizer", checked: false },
-      { text: "Paper towels/napkins", checked: false },
-      { text: "Galbi", checked: true },
-      { text: "Foil, aluminum trays", checked: false },
-      { text: "Hersheys cookies and cream", checked: false },
-      { text: "Flat rectangular marshmallows", checked: false },
-      { text: "Skewers", checked: false },
-      { text: "Honey graham crackers", checked: false },
-      { text: "2 packs of firewood", checked: false },
-      { text: "Lighter fluid", checked: false },
-      { text: "Toothbrush, toothpaste", checked: false },
-      { text: "Tents", checked: false },
-      { text: "Air mattress/sleeping bags", checked: false },
-      { text: "Seasoning", checked: false },
-      { text: "Portable chargers", checked: false },
-      { text: "Shower items", checked: false },
-      { text: "Headlamp", checked: false },
-      { text: "Burner/stove", checked: true },
-      { text: "Floss, Toothbrush, toothpaste, mouthwash", checked: false },
-      { text: "Toilet paper", checked: false },
-      { text: "Camping chairs", checked: false }
+      // Food & Drinks
+      { text: "Marshmallows, sticks", category: "Food & Drinks", checked: false },
+      { text: "Alcohol", category: "Food & Drinks", checked: false },
+      { text: "Pack of water/water gallon jugs", category: "Food & Drinks", checked: false },
+      { text: "Galbi", category: "Food & Drinks", checked: true },
+      { text: "Hersheys cookies and cream", category: "Food & Drinks", checked: false },
+      { text: "Flat rectangular marshmallows", category: "Food & Drinks", checked: false },
+      { text: "Honey graham crackers", category: "Food & Drinks", checked: false },
+      { text: "Seasoning", category: "Food & Drinks", checked: false },
+
+      // Camp Gear & Fire
+      { text: "Charcoal", category: "Camp Gear & Fire", checked: false },
+      { text: "Firewood", category: "Camp Gear & Fire", checked: false },
+      { text: "2 packs of firewood", category: "Camp Gear & Fire", checked: false },
+      { text: "Lighter fluid", category: "Camp Gear & Fire", checked: false },
+      { text: "Tents", category: "Camp Gear & Fire", checked: false },
+      { text: "Air mattress/sleeping bags", category: "Camp Gear & Fire", checked: false },
+      { text: "Portable chargers", category: "Camp Gear & Fire", checked: false },
+      { text: "Headlamp", category: "Camp Gear & Fire", checked: false },
+      { text: "Camping chairs", category: "Camp Gear & Fire", checked: false },
+
+      // Cooking & Dining
+      { text: "Red Solo Cups", category: "Cooking & Dining", checked: false },
+      { text: "Tablecloth", category: "Cooking & Dining", checked: false },
+      { text: "Utensils", category: "Cooking & Dining", checked: true },
+      { text: "Plates, bowls", category: "Cooking & Dining", checked: false },
+      { text: "Icebox", category: "Cooking & Dining", checked: true },
+      { text: "Foil, aluminum trays", category: "Cooking & Dining", checked: false },
+      { text: "Skewers", category: "Cooking & Dining", checked: false },
+      { text: "Burner/stove", category: "Cooking & Dining", checked: true },
+      { text: "Paper towels/napkins", category: "Cooking & Dining", checked: false },
+
+      // Toiletries & Hygiene
+      { text: "Bug/Mosquito Repellent", category: "Toiletries & Hygiene", checked: true },
+      { text: "Hand sanitizer", category: "Toiletries & Hygiene", checked: false },
+      { text: "Toothbrush, toothpaste", category: "Toiletries & Hygiene", checked: false },
+      { text: "Shower items", category: "Toiletries & Hygiene", checked: false },
+      { text: "Floss, Toothbrush, toothpaste, mouthwash", category: "Toiletries & Hygiene", checked: false },
+      { text: "Toilet paper", category: "Toiletries & Hygiene", checked: false }
     ];
 
-    const checklistEl = document.getElementById('checklist');
+    const categoriesGrid = document.getElementById('categoriesGrid');
     const todoForm = document.getElementById('todoForm');
     const itemInput = document.getElementById('itemInput');
+    const categorySelect = document.getElementById('categorySelect');
     const statusBadge = document.getElementById('statusBadge');
 
-    // Public REST bin created specifically for your camping trip
     const BIN_ID = "66ab0e84e41b4d34e417937d";
     const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
     const MASTER_KEY = "$2a$10$w81S/e8O.BvX11.E4rCee.Q90K48u.kUuY2p2K92G9xY2.QG";
 
-    let items = JSON.parse(localStorage.getItem('silverwood_items')) || initialItems;
+    let items = JSON.parse(localStorage.getItem('silverwood_items_v2')) || initialItems;
 
     function render() {
-      checklistEl.innerHTML = '';
+      categoriesGrid.innerHTML = '';
+      
+      // Group items by category
+      const grouped = {};
       items.forEach((item, index) => {
-        const li = document.createElement('li');
-        li.className = `item ${item.checked ? 'checked' : ''}`;
-        
-        li.innerHTML = `
-          <div class="item-left" onclick="toggleItem(${index})">
-            <div class="checkbox"></div>
-            <span class="item-text">${escapeHtml(item.text)}</span>
-          </div>
-          <button class="delete-btn" onclick="deleteItem(${index})">&times;</button>
-        `;
-        
-        checklistEl.appendChild(li);
+        const cat = item.category || "General";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push({ ...item, originalIndex: index });
       });
-      localStorage.setItem('silverwood_items', JSON.stringify(items));
+
+      // Render category cards side-by-side
+      Object.keys(grouped).forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'category-card';
+
+        const title = document.createElement('div');
+        title.className = 'category-title';
+        title.textContent = cat;
+        card.appendChild(title);
+
+        const ul = document.createElement('ul');
+        ul.className = 'checklist';
+
+        grouped[cat].forEach(item => {
+          const li = document.createElement('li');
+          li.className = `item ${item.checked ? 'checked' : ''}`;
+          
+          li.innerHTML = `
+            <div class="item-left" onclick="toggleItem(${item.originalIndex})">
+              <div class="checkbox"></div>
+              <span class="item-text">${escapeHtml(item.text)}</span>
+            </div>
+            <button class="delete-btn" onclick="deleteItem(${item.originalIndex})">&times;</button>
+          `;
+          ul.appendChild(li);
+        });
+
+        card.appendChild(ul);
+        categoriesGrid.appendChild(card);
+      });
+
+      localStorage.setItem('silverwood_items_v2', JSON.stringify(items));
     }
 
     function toggleItem(index) {
@@ -339,8 +422,9 @@
     todoForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = itemInput.value.trim();
+      const category = categorySelect.value;
       if (text) {
-        items.push({ text, checked: false });
+        items.push({ text, category, checked: false });
         itemInput.value = '';
         render();
         syncToCloud();
@@ -386,10 +470,7 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    // Render local/default items immediately so screen is never blank
     render();
-    
-    // Fetch shared list from cloud and auto-refresh every 4 seconds for shared syncing
     fetchCloudData();
     setInterval(fetchCloudData, 4000);
   </script>
