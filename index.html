@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Silverwood Lake Camping</title>
   
-  <!-- Apple San Francisco Font / System Font Stack -->
   <style>
     * {
       box-sizing: border-box;
@@ -122,6 +121,15 @@
       font-weight: 600;
       color: #8e8e93;
       padding-left: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-badge {
+      font-size: 0.75rem;
+      color: #30d158;
+      font-weight: 400;
     }
 
     .checklist {
@@ -129,6 +137,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      padding-bottom: 40px;
     }
 
     .item {
@@ -239,78 +248,127 @@
       <button type="submit">Add</button>
     </form>
 
-    <div class="checklist-title">Checklist</div>
+    <div class="checklist-title">
+      Checklist
+      <span class="status-badge" id="statusBadge">● Live Sync</span>
+    </div>
 
     <!-- Items List -->
     <ul class="checklist" id="checklist"></ul>
   </div>
 
+  <!-- Firebase Scripts for Real-Time Multi-User Syncing -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
   <script>
-    // Initial Items based on your screenshot
-    const defaultItems = [
+    // Initialize Firebase Database for real-time collaboration
+    // Using a public real-time node for live multi-user syncing
+    const firebaseConfig = {
+      databaseURL: "https://camping-trip-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref('silverwood_camping_list');
+
+    // Pre-populated items combining previous note screenshot + new Google Sheet screenshot
+    const initialItems = [
       { text: "tommy", checked: false },
       { text: "vu", checked: false },
       { text: "❤️❤️", checked: false },
       { text: "love", checked: true },
-      { text: "i", checked: true }
+      { text: "i", checked: true },
+      { text: "Marshmallows, sticks", checked: false },
+      { text: "Charcoal", checked: false },
+      { text: "Red Solo Cups", checked: false },
+      { text: "Bug/Mosquito Repellent", checked: true },
+      { text: "Firewood", checked: false },
+      { text: "Tablecloth", checked: false },
+      { text: "Utensils", checked: true },
+      { text: "Plates, bowls", checked: false },
+      { text: "Icebox", checked: true },
+      { text: "Alcohol", checked: false },
+      { text: "Pack of water/water gallon jugs", checked: false },
+      { text: "Hand sanitizer", checked: false },
+      { text: "Paper towels/napkins", checked: false },
+      { text: "Galbi", checked: true },
+      { text: "Foil, aluminum trays", checked: false },
+      { text: "Hersheys cookies and cream", checked: false },
+      { text: "Flat rectangular marshmallows", checked: false },
+      { text: "Skewers", checked: false },
+      { text: "Honey graham crackers", checked: false },
+      { text: "2 packs of firewood", checked: false },
+      { text: "Lighter fluid", checked: false },
+      { text: "Toothbrush, toothpaste", checked: false },
+      { text: "Tents", checked: false },
+      { text: "Air mattress/sleeping bags", checked: false },
+      { text: "Seasoning", checked: false },
+      { text: "Portable chargers", checked: false },
+      { text: "Shower items", checked: false },
+      { text: "Headlamp", checked: false },
+      { text: "Burner/stove", checked: true },
+      { text: "Floss, Toothbrush, toothpaste, mouthwash", checked: false },
+      { text: "Toilet paper", checked: false },
+      { text: "Camping chairs", checked: false }
     ];
-
-    // Load from LocalStorage or fallback to default
-    let items = JSON.parse(localStorage.getItem('campingList')) || defaultItems;
 
     const checklistEl = document.getElementById('checklist');
     const todoForm = document.getElementById('todoForm');
     const itemInput = document.getElementById('itemInput');
 
-    function saveAndRender() {
-      localStorage.setItem('campingList', JSON.stringify(items));
-      render();
-    }
+    // On Load: Check if database is empty, seed initial values if necessary
+    db.once('value', (snapshot) => {
+      if (!snapshot.exists()) {
+        initialItems.forEach((item) => {
+          db.push(item);
+        });
+      }
+    });
 
-    function render() {
+    // Real-Time Listener: Automatically updates every user's screen whenever anyone adds, updates, or deletes
+    db.on('value', (snapshot) => {
       checklistEl.innerHTML = '';
-      items.forEach((item, index) => {
-        const li = document.createElement('li');
-        li.className = `item ${item.checked ? 'checked' : ''}`;
-        
-        li.innerHTML = `
-          <div class="item-left" onclick="toggleItem(${index})">
-            <div class="checkbox"></div>
-            <span class="item-text">${escapeHtml(item.text)}</span>
-          </div>
-          <button class="delete-btn" onclick="deleteItem(${index})">&times;</button>
-        `;
-        
-        checklistEl.appendChild(li);
-      });
+      const data = snapshot.val();
+
+      if (data) {
+        Object.keys(data).forEach((key) => {
+          const item = data[key];
+          const li = document.createElement('li');
+          li.className = `item ${item.checked ? 'checked' : ''}`;
+
+          li.innerHTML = `
+            <div class="item-left" onclick="toggleItem('${key}', ${item.checked})">
+              <div class="checkbox"></div>
+              <span class="item-text">${escapeHtml(item.text)}</span>
+            </div>
+            <button class="delete-btn" onclick="deleteItem('${key}')">&times;</button>
+          `;
+
+          checklistEl.appendChild(li);
+        });
+      }
+    });
+
+    function toggleItem(key, currentStatus) {
+      db.child(key).update({ checked: !currentStatus });
     }
 
-    function toggleItem(index) {
-      items[index].checked = !items[index].checked;
-      saveAndRender();
-    }
-
-    function deleteItem(index) {
-      items.splice(index, 1);
-      saveAndRender();
+    function deleteItem(key) {
+      db.child(key).remove();
     }
 
     todoForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = itemInput.value.trim();
       if (text) {
-        items.push({ text, checked: false });
+        db.push({ text: text, checked: false });
         itemInput.value = '';
-        saveAndRender();
       }
     });
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
-
-    // Initial load
-    render();
   </script>
 </body>
 </html>
