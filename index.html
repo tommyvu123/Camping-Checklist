@@ -25,7 +25,7 @@
 
     .container {
       width: 100%;
-      max-width: 850px; /* Expanded width to fit 2 side-by-side columns */
+      max-width: 850px;
       display: flex;
       flex-direction: column;
       gap: 20px;
@@ -42,7 +42,7 @@
     .trip-card h1 {
       font-size: 1.4rem;
       font-weight: 700;
-      color: #e5b324; /* Apple Yellow accent */
+      color: #e5b324;
       margin-bottom: 8px;
     }
 
@@ -126,7 +126,7 @@
       opacity: 0.8;
     }
 
-    /* Checklist Header */
+    /* Checklist Header & Sync Button */
     .checklist-header {
       font-size: 1.1rem;
       font-weight: 600;
@@ -135,6 +135,28 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    .sync-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sync-btn {
+      background-color: #2c2c2e;
+      color: #e5b324;
+      border: 1px solid #3a3a3c;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .sync-btn:active {
+      transform: scale(0.95);
     }
 
     .status-badge {
@@ -300,7 +322,10 @@
 
     <div class="checklist-header">
       Checklist
-      <span class="status-badge" id="statusBadge">● Live Sync</span>
+      <div class="sync-controls">
+        <button class="sync-btn" onclick="manualSync()">↺ Sync Now</button>
+        <span class="status-badge" id="statusBadge">● Syncing...</span>
+      </div>
     </div>
 
     <!-- Categorized Grid View -->
@@ -356,16 +381,14 @@
     const categorySelect = document.getElementById('categorySelect');
     const statusBadge = document.getElementById('statusBadge');
 
-    const BIN_ID = "66ab0e84e41b4d34e417937d";
-    const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-    const MASTER_KEY = "$2a$10$w81S/e8O.BvX11.E4rCee.Q90K48u.kUuY2p2K92G9xY2.QG";
+    // Free KV endpoint for effortless cross-device persistence
+    const SYNC_URL = "https://kvdb.io/4yTXZP9pXkUf6EwQkP2TzE/silverwood_camping_list_v3";
 
-    let items = JSON.parse(localStorage.getItem('silverwood_items_v2')) || initialItems;
+    let items = JSON.parse(localStorage.getItem('silverwood_items_v3')) || initialItems;
 
     function render() {
       categoriesGrid.innerHTML = '';
       
-      // Group items by category
       const grouped = {};
       items.forEach((item, index) => {
         const cat = item.category || "General";
@@ -373,7 +396,6 @@
         grouped[cat].push({ ...item, originalIndex: index });
       });
 
-      // Render category cards side-by-side
       Object.keys(grouped).forEach(cat => {
         const card = document.createElement('div');
         card.className = 'category-card';
@@ -404,7 +426,7 @@
         categoriesGrid.appendChild(card);
       });
 
-      localStorage.setItem('silverwood_items_v2', JSON.stringify(items));
+      localStorage.setItem('silverwood_items_v3', JSON.stringify(items));
     }
 
     function toggleItem(index) {
@@ -433,37 +455,44 @@
 
     async function fetchCloudData() {
       try {
-        const res = await fetch(`${API_URL}/latest`, {
-          headers: { 'X-Master-Key': MASTER_KEY }
-        });
+        const res = await fetch(SYNC_URL);
         if (res.ok) {
-          const result = await res.json();
-          if (Array.isArray(result.record)) {
-            items = result.record;
+          const cloudItems = await res.json();
+          if (Array.isArray(cloudItems)) {
+            items = cloudItems;
             render();
             statusBadge.style.color = "#30d158";
-            statusBadge.textContent = "● Live Sync";
+            statusBadge.textContent = "● Synced";
           }
+        } else if (res.status === 404) {
+          // First time initialization on key-value store
+          syncToCloud();
         }
       } catch (e) {
         statusBadge.style.color = "#ff9f0a";
-        statusBadge.textContent = "● Local Mode";
+        statusBadge.textContent = "● Offline";
       }
     }
 
     async function syncToCloud() {
+      statusBadge.style.color = "#e5b324";
+      statusBadge.textContent = "● Saving...";
       try {
-        await fetch(API_URL, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': MASTER_KEY
-          },
+        await fetch(SYNC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(items)
         });
+        statusBadge.style.color = "#30d158";
+        statusBadge.textContent = "● Synced";
       } catch (e) {
-        console.log("Cloud sync postponed");
+        statusBadge.style.color = "#ff9f0a";
+        statusBadge.textContent = "● Offline";
       }
+    }
+
+    function manualSync() {
+      fetchCloudData();
     }
 
     function escapeHtml(str) {
@@ -472,7 +501,7 @@
 
     render();
     fetchCloudData();
-    setInterval(fetchCloudData, 4000);
+    setInterval(fetchCloudData, 3000); // Polling sync every 3s
   </script>
 </body>
 </html>
