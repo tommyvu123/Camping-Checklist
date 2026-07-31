@@ -334,13 +334,6 @@
 
   <script>
     const initialItems = [
-      // People
-      { text: "tommy", category: "People", checked: false },
-      { text: "vu", category: "People", checked: false },
-      { text: "❤️❤️", category: "People", checked: false },
-      { text: "love", category: "People", checked: true },
-      { text: "i", category: "People", checked: true },
-
       // Food & Drinks
       { text: "Marshmallows, sticks", category: "Food & Drinks", checked: false },
       { text: "Alcohol", category: "Food & Drinks", checked: false },
@@ -388,10 +381,12 @@
     const categorySelect = document.getElementById('categorySelect');
     const statusBadge = document.getElementById('statusBadge');
 
-    // Reliable Firebase REST API endpoint
-    const FIREBASE_URL = "https://silverwood-camping-default-rtdb.firebaseio.com/checklist.json";
-
-    let items = JSON.parse(localStorage.getItem('silverwood_items_v4')) || initialItems;
+    // Cloud Database Settings (JSONBlob)
+    const BLOB_URL = "https://jsonblob.com/api/jsonBlob";
+    let syncRoom = new URLSearchParams(window.location.search).get('room');
+    
+    // Use local storage to remember list just in case of refresh
+    let items = JSON.parse(localStorage.getItem('silverwood_items_v5')) || initialItems;
     let isSaving = false;
 
     function render() {
@@ -434,7 +429,7 @@
         categoriesGrid.appendChild(card);
       });
 
-      localStorage.setItem('silverwood_items_v4', JSON.stringify(items));
+      localStorage.setItem('silverwood_items_v5', JSON.stringify(items));
     }
 
     async function toggleItem(index) {
@@ -462,41 +457,74 @@
     });
 
     async function fetchFromCloud() {
-      if (isSaving) return;
+      if (isSaving) return; // Prevent overwriting while you are saving an edit
+
       try {
-        const res = await fetch(FIREBASE_URL);
-        if (res.ok) {
-          const cloudData = await res.json();
-          if (Array.isArray(cloudData)) {
-            items = cloudData;
-            render();
+        if (!syncRoom) {
+          // No room in URL? Create a brand new cloud database for your group.
+          const res = await fetch(BLOB_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(items)
+          });
+          
+          if (!res.ok) throw new Error("Could not create room");
+
+          const locationUrl = res.headers.get('Location');
+          if (locationUrl) {
+            syncRoom = locationUrl.split('/').pop();
+            // Automatically add the room ID to the URL so you can share it
+            window.history.replaceState(null, '', `?room=${syncRoom}`);
             statusBadge.style.color = "#30d158";
-            statusBadge.textContent = "● Synced";
-          } else if (cloudData === null) {
-            // Seed database for first time
-            await pushToCloud();
+            statusBadge.textContent = "● URL Ready to Share!";
           }
+          return;
+        }
+
+        // Fetch data for your specific room
+        const res = await fetch(`${BLOB_URL}/${syncRoom}`);
+        
+        // If the room expired or was deleted, wipe the URL to create a new one next time
+        if (res.status === 404) {
+          syncRoom = null;
+          window.history.replaceState(null, '', window.location.pathname);
+          throw new Error("Room expired");
+        }
+        
+        if (!res.ok) throw new Error("Fetch failed");
+
+        const cloudData = await res.json();
+        if (Array.isArray(cloudData)) {
+          items = cloudData;
+          render(); // Updates your screen with any cousin's changes
+          statusBadge.style.color = "#30d158";
+          statusBadge.textContent = "● Synced";
         }
       } catch (e) {
+        // This stops the UI from freezing if the connection drops
         statusBadge.style.color = "#ff9f0a";
         statusBadge.textContent = "● Offline Mode";
       }
     }
 
     async function pushToCloud() {
+      if (!syncRoom) return; // Wait until a room exists
+      
       isSaving = true;
       statusBadge.style.color = "#e5b324";
       statusBadge.textContent = "● Saving...";
+      
       try {
-        const res = await fetch(FIREBASE_URL, {
+        const res = await fetch(`${BLOB_URL}/${syncRoom}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify(items)
         });
-        if (res.ok) {
-          statusBadge.style.color = "#30d158";
-          statusBadge.textContent = "● Synced";
-        }
+        
+        if (!res.ok) throw new Error("Save Error");
+        
+        statusBadge.style.color = "#30d158";
+        statusBadge.textContent = "● Synced";
       } catch (e) {
         statusBadge.style.color = "#ff9f0a";
         statusBadge.textContent = "● Offline Mode";
@@ -515,11 +543,11 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    // Initial load
+    // Initialize application
     render();
     fetchFromCloud();
 
-    // Auto-refresh every 3 seconds for seamless cousin/group multi-device updates
+    // Auto-refresh every 3 seconds so you see cousins checking things off in near real-time
     setInterval(fetchFromCloud, 3000);
   </script>
 </body>
