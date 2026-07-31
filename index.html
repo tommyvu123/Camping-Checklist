@@ -126,7 +126,7 @@
       opacity: 0.8;
     }
 
-    /* Checklist Header & Sync Button */
+    /* Checklist Header & Controls */
     .checklist-header {
       font-size: 1.1rem;
       font-weight: 600;
@@ -148,7 +148,7 @@
       color: #e5b324;
       border: 1px solid #3a3a3c;
       border-radius: 8px;
-      padding: 4px 10px;
+      padding: 6px 12px;
       font-size: 0.8rem;
       font-weight: 600;
       cursor: pointer;
@@ -323,8 +323,8 @@
     <div class="checklist-header">
       Checklist
       <div class="sync-controls">
-        <button class="sync-btn" onclick="manualSync()">↺ Sync Now</button>
-        <span class="status-badge" id="statusBadge">● Syncing...</span>
+        <button class="sync-btn" type="button" onclick="manualSync()">↺ Sync Now</button>
+        <span class="status-badge" id="statusBadge">● Connecting...</span>
       </div>
     </div>
 
@@ -334,6 +334,13 @@
 
   <script>
     const initialItems = [
+      // People
+      { text: "tommy", category: "People", checked: false },
+      { text: "vu", category: "People", checked: false },
+      { text: "❤️❤️", category: "People", checked: false },
+      { text: "love", category: "People", checked: true },
+      { text: "i", category: "People", checked: true },
+
       // Food & Drinks
       { text: "Marshmallows, sticks", category: "Food & Drinks", checked: false },
       { text: "Alcohol", category: "Food & Drinks", checked: false },
@@ -381,10 +388,11 @@
     const categorySelect = document.getElementById('categorySelect');
     const statusBadge = document.getElementById('statusBadge');
 
-    // Free KV endpoint for effortless cross-device persistence
-    const SYNC_URL = "https://kvdb.io/4yTXZP9pXkUf6EwQkP2TzE/silverwood_camping_list_v3";
+    // Reliable Firebase REST API endpoint
+    const FIREBASE_URL = "https://silverwood-camping-default-rtdb.firebaseio.com/checklist.json";
 
-    let items = JSON.parse(localStorage.getItem('silverwood_items_v3')) || initialItems;
+    let items = JSON.parse(localStorage.getItem('silverwood_items_v4')) || initialItems;
+    let isSaving = false;
 
     function render() {
       categoriesGrid.innerHTML = '';
@@ -426,22 +434,22 @@
         categoriesGrid.appendChild(card);
       });
 
-      localStorage.setItem('silverwood_items_v3', JSON.stringify(items));
+      localStorage.setItem('silverwood_items_v4', JSON.stringify(items));
     }
 
-    function toggleItem(index) {
+    async function toggleItem(index) {
       items[index].checked = !items[index].checked;
       render();
-      syncToCloud();
+      await pushToCloud();
     }
 
-    function deleteItem(index) {
+    async function deleteItem(index) {
       items.splice(index, 1);
       render();
-      syncToCloud();
+      await pushToCloud();
     }
 
-    todoForm.addEventListener('submit', (e) => {
+    todoForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const text = itemInput.value.trim();
       const category = categorySelect.value;
@@ -449,59 +457,70 @@
         items.push({ text, category, checked: false });
         itemInput.value = '';
         render();
-        syncToCloud();
+        await pushToCloud();
       }
     });
 
-    async function fetchCloudData() {
+    async function fetchFromCloud() {
+      if (isSaving) return;
       try {
-        const res = await fetch(SYNC_URL);
+        const res = await fetch(FIREBASE_URL);
         if (res.ok) {
-          const cloudItems = await res.json();
-          if (Array.isArray(cloudItems)) {
-            items = cloudItems;
+          const cloudData = await res.json();
+          if (Array.isArray(cloudData)) {
+            items = cloudData;
             render();
             statusBadge.style.color = "#30d158";
             statusBadge.textContent = "● Synced";
+          } else if (cloudData === null) {
+            // Seed database for first time
+            await pushToCloud();
           }
-        } else if (res.status === 404) {
-          // First time initialization on key-value store
-          syncToCloud();
         }
       } catch (e) {
         statusBadge.style.color = "#ff9f0a";
-        statusBadge.textContent = "● Offline";
+        statusBadge.textContent = "● Offline Mode";
       }
     }
 
-    async function syncToCloud() {
+    async function pushToCloud() {
+      isSaving = true;
       statusBadge.style.color = "#e5b324";
       statusBadge.textContent = "● Saving...";
       try {
-        await fetch(SYNC_URL, {
-          method: 'POST',
+        const res = await fetch(FIREBASE_URL, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(items)
         });
-        statusBadge.style.color = "#30d158";
-        statusBadge.textContent = "● Synced";
+        if (res.ok) {
+          statusBadge.style.color = "#30d158";
+          statusBadge.textContent = "● Synced";
+        }
       } catch (e) {
         statusBadge.style.color = "#ff9f0a";
-        statusBadge.textContent = "● Offline";
+        statusBadge.textContent = "● Offline Mode";
+      } finally {
+        isSaving = false;
       }
     }
 
     function manualSync() {
-      fetchCloudData();
+      statusBadge.style.color = "#e5b324";
+      statusBadge.textContent = "● Syncing...";
+      fetchFromCloud();
     }
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
+    // Initial load
     render();
-    fetchCloudData();
-    setInterval(fetchCloudData, 3000); // Polling sync every 3s
+    fetchFromCloud();
+
+    // Auto-refresh every 3 seconds for seamless cousin/group multi-device updates
+    setInterval(fetchFromCloud, 3000);
   </script>
 </body>
 </html>
